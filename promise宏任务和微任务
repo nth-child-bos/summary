@@ -1,0 +1,143 @@
+const first = () =>
+  new Promise((resolve, reject) => {
+    console.log(1)
+    const p = new Promise((resolve, reject) => {
+      console.log(2)
+      setTimeout(() => {
+        console.log(3)
+        resolve(4)
+      }, 0);
+      resolve(5)
+    })
+    resolve(6)
+    p.then(arg1 => {
+      console.log(arg1)
+    })
+  })
+
+first().then(arg2 => {
+  console.log(arg2)
+})
+console.log(7)
+
+// 执行结果：  1 2 7 5 6 3
+// new Promise是立刻执行其内部函数的（同步），因此同步函数执行结果为1 2 7。 
+// 异步任务队列：【res => {console.log(arg1)}, res => {console.log(arg2)}, res => {console.log(3); resolve(4)}】。
+// 第一项微任务执行时，打印结果1 2 7 5, 任务队列【res => {console.log(arg2)}, res => {console.log(3); resolve(4)}】
+// 接着执行下一项微任务，打印结果1 2 7 5 6, 任务队列【res => {console.log(3); resolve(4)}】
+// 接着执行下一项宏任务，打印结果1 2 7 5 6 3, 任务队列为空【】, resolve(4)无效, 原因是resolve(5)已执行,promise只能被resolve一次, 具体和promise特性有关... 
+
+// ========1、同步和异步======== //
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(3)
+})
+
+setTimeout(() => {
+  console.log(2)
+}, 0);
+
+console.log(1)
+
+// 执行结果：  1 3 2
+// 解释：setTimeout、promise.then等函数为异步函数。 （可理解为注册一个异步任务“内部回调函数开始排队，等待执行”）
+// 异步任务队列【res => {console.log(3)},() => {console.log(2)}】
+
+// ========2、宏任务和微任务======== //
+setTimeout(() => {
+  console.log(2)
+}, 0);
+
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(3)
+})
+
+console.log(1)
+
+// 执行结果：  1 3 2
+// 解释：不论注册时机，微任务排列在宏任务前面。 setTimeout为宏任务，promise.then为微任务， 即便setTimeout的异步任务是先注册的， 作为微任务的promise.then后注册可插队。
+// 异步任务队列【res => {console.log(3)},() => {console.log(2)}】
+// 注【个人理解】：微任务是resolve()执行时注册的
+
+// ========3、多个微任务======== //
+
+setTimeout(() => {
+  console.log(2)
+}, 0);
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(4)
+})
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(3)
+})
+
+console.log(1)
+
+// 执行结果：  1 4 3 2
+// 解释：微任务拍在宏任务前面， 微任务和微任务之间按顺序排列
+// 异步任务队列【res => {console.log(4)},res => {console.log(3)},() => {console.log(2)}】
+
+// ========4、多个宏任务======== //
+
+setTimeout(() => {
+  console.log(2)
+}, 0);
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(4)
+})
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(3)
+})
+setTimeout(() => {
+  console.log(5)
+}, 0);
+console.log(1)
+
+// 执行结果：  1 4 3 2 5
+// 解释：微任务拍在宏任务前面， 宏任务和宏任务之间按顺序排列
+// 异步任务队列【res => {console.log(4)},res => {console.log(3)},() => {console.log(2)},() => {console.log(5)}】
+
+
+// ========5、微任务执行过程中动态生成新任务======== //
+setTimeout(() => {
+  console.log(2)
+}, 0);
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(4)
+})
+new Promise((resolve, reject) => {
+  resolve()
+}).then(res => {
+  console.log(3)
+  setTimeout(() => {
+    console.log(6)
+  }, 0);
+
+  new Promise((resolve, reject) => {
+    resolve()
+  }).then(res => {
+    console.log(7)
+  })
+})
+setTimeout(() => {
+  console.log(5)
+}, 0);
+console.log(1)
+
+// 执行结果：  1 4 3 7 2 5 6
+// 解释【个人理解】：这是一个生产消费模型，当微任务3被执行的时候生产出了宏任务6和微任务7，6和7与剩余的任务队列排序
+// 异步任务队列【res => {console.log(4)},res => {console.log(3)},() => {console.log(2)},() => {console.log(5)}】。
+// 当执行到第二项时， 队列为res => {console.log(7)},res => {console.log(2)},() => {console.log(5)},() => {console.log(6)}】
